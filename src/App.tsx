@@ -72,7 +72,7 @@ function App(): JSX.Element {
     setLoading(true);
     setTyping(true);
     try {
-      const res = await axios.post("http://localhost:5000/chat", { message });
+      const res = await axios.post("https://chiremba-ai.onrender.com/chat", { message });
       const reply = res.data.response;
       setTimeout(() => {
         setChat(prev => [...prev, { sender: "doctor", text: reply }]);
@@ -89,7 +89,7 @@ function App(): JSX.Element {
   };
 
   const resetConversation = async () => {
-    try { await axios.post("http://localhost:5000/reset"); } catch {}
+    try { await axios.post("https://chiremba-ai.onrender.com/reset"); } catch {}
     setChat([]);
   };
 
