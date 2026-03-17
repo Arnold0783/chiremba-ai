@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, KeyboardEvent, ChangeEvent } from "react";
 import axios from "axios";
 import { FiSend, FiMic, FiRefreshCw, FiVolume2, FiVolumeX } from "react-icons/fi";
+import { FaHeartbeat } from "react-icons/fa";
 
 // Web Speech API
 const SpeechRecognitionConstructor =
@@ -11,6 +12,7 @@ interface ChatMessage {
   sender: "user" | "doctor";
   text: string;
   audio?: boolean;
+  urgent?: boolean; // NEW: urgent symptom flag
 }
 
 const App: React.FC = () => {
@@ -20,10 +22,10 @@ const App: React.FC = () => {
   const [typing, setTyping] = useState<boolean>(false);
   const [recording, setRecording] = useState<boolean>(false);
   const [recognitionInstance, setRecognitionInstance] = useState<any>(null);
-  const [mute, setMute] = useState<boolean>(false);
+  const [lastDoctorMessage, setLastDoctorMessage] = useState<ChatMessage | null>(null);
+
   const chatEndRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-
   const currentAudioRef = useRef<HTMLAudioElement | null>(null);
   const currentUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -33,7 +35,6 @@ const App: React.FC = () => {
   }, [chat, typing]);
 
   useEffect(() => {
-    // Auto-resize textarea
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
       textareaRef.current.style.height = textareaRef.current.scrollHeight + "px";
@@ -49,6 +50,7 @@ const App: React.FC = () => {
     return "en-US";
   };
 
+  // --- Speech Recognition ---
   const startListening = () => {
     if (!SpeechRecognitionConstructor) return alert("Voice recognition not supported.");
     stopSpeech();
@@ -94,6 +96,7 @@ const App: React.FC = () => {
     }
   };
 
+  // --- Audio / TTS ---
   const stopSpeech = () => {
     if (currentAudioRef.current) {
       currentAudioRef.current.pause();
@@ -107,7 +110,6 @@ const App: React.FC = () => {
   };
 
   const speakText = (text: string, lang?: string) => {
-    if (mute) return;
     stopSpeech();
     const speech = new SpeechSynthesisUtterance(text);
     currentUtteranceRef.current = speech;
@@ -118,7 +120,6 @@ const App: React.FC = () => {
   };
 
   const playAudio = (base64Audio: string | null, text: string) => {
-    if (mute) return;
     stopSpeech();
 
     if (base64Audio) {
@@ -146,6 +147,7 @@ const App: React.FC = () => {
     } else speakText(text);
   };
 
+  // --- Send message + auto-play reply ---
   const sendMessage = async () => {
     if (!message.trim() || loading) return;
     setChat(prev => [...prev, { sender: "user", text: message }]);
@@ -156,19 +158,24 @@ const App: React.FC = () => {
       const res = await axios.post("https://chiremba-ai.onrender.com/chat", { message });
       const reply: string = res.data.response;
 
-      setChat(prev => [...prev, { sender: "doctor", text: reply, audio: !!res.data.audio }]);
+      // Detect urgent symptoms in response
+      const urgent = reply.toLowerCase().includes("urgent") || reply.toLowerCase().includes("⚠️");
+
+      const newDoctorMessage: ChatMessage = { sender: "doctor", text: reply, audio: !!res.data.audio, urgent };
+      setChat(prev => [...prev, newDoctorMessage]);
+      setLastDoctorMessage(newDoctorMessage);
+
       setTyping(false);
       setLoading(false);
 
-      setTimeout(() => {
-        if (!mute) playAudio(res.data.audio ?? null, reply);
-      }, 50);
+      setTimeout(() => playAudio(res.data.audio ?? null, reply), 50);
     } catch {
       const errorMsg = "Server error";
-      setChat(prev => [...prev, { sender: "doctor", text: errorMsg }]);
+      const errorMessage: ChatMessage = { sender: "doctor", text: errorMsg };
+      setChat(prev => [...prev, errorMessage]);
       setTyping(false);
       setLoading(false);
-      if (!mute) speakText(errorMsg);
+      speakText(errorMsg);
     }
 
     setMessage("");
@@ -177,6 +184,7 @@ const App: React.FC = () => {
   const resetConversation = async () => {
     try { await axios.post("https://chiremba-ai.onrender.com/reset"); } catch {}
     setChat([]);
+    setLastDoctorMessage(null);
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -188,18 +196,14 @@ const App: React.FC = () => {
 
   const handleChange = (e: ChangeEvent<HTMLTextAreaElement>) => setMessage(e.target.value);
 
-  const toggleMute = () => {
-    setMute(prev => {
-      const newMute = !prev;
-      if (newMute) stopSpeech();
-      return newMute;
-    });
+  const togglePlayMute = () => {
+    if (currentAudioRef.current || currentUtteranceRef.current) stopSpeech();
+    else if (lastDoctorMessage) playAudio(lastDoctorMessage.audio ? lastDoctorMessage.audio as any : null, lastDoctorMessage.text);
   };
 
   return (
     <div style={styles.container}>
       <div style={styles.chatBox}>
-        {/* HEADER */}
         <div style={styles.header}>
           <img src="/zim-flag.png" alt="Zimbabwe Flag" style={styles.flag} />
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
@@ -210,27 +214,50 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        {/* CHAT AREA */}
         <div style={styles.chatArea}>
           {chat.map((msg, idx) => (
-            <div key={idx} style={{ display: "flex", flexDirection: "column", alignItems: msg.sender === "user" ? "flex-end" : "flex-start" }}>
+            <div
+              key={idx}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: msg.sender === "user" ? "flex-end" : "flex-start",
+                animation: "fadeIn 0.5s"
+              }}
+            >
               <span style={{
                 padding: "10px 14px",
                 borderRadius: 20,
                 maxWidth: "75%",
-                background: msg.sender === "user" ? "linear-gradient(135deg,#0277bd,#81d4fa)" : "linear-gradient(135deg,#6a1b9a,#ab47bc)",
+                background: msg.urgent
+                  ? "linear-gradient(135deg, #f44336, #ff7961)" // subtle urgent red
+                  : msg.sender === "user"
+                    ? "linear-gradient(135deg,#0277bd,#81d4fa)"
+                    : "linear-gradient(135deg,#6a1b9a,#ab47bc)",
                 color: "#fff",
                 fontSize: 15,
                 wordWrap: "break-word",
-                boxShadow: "0 5px 15px rgba(0,0,0,0.1)"
-              }}>{msg.text}</span>
+                boxShadow: msg.urgent ? "0 0 10px rgba(244,67,54,0.5)" : "0 5px 15px rgba(0,0,0,0.1)",
+                position: "relative"
+              }}>
+                {msg.text}
+                {msg.urgent && (
+                  <FaHeartbeat style={{
+                    position: "absolute",
+                    top: -6,
+                    right: -6,
+                    color: "#fff",
+                    fontSize: 16,
+                    animation: "heartbeat 1.5s infinite"
+                  }} />
+                )}
+              </span>
             </div>
           ))}
           {typing && <TypingIndicator />}
           <div ref={chatEndRef} />
         </div>
 
-        {/* INPUT AREA */}
         <div style={styles.inputArea}>
           <textarea
             ref={textareaRef}
@@ -241,25 +268,14 @@ const App: React.FC = () => {
             style={styles.textarea}
           />
           <button onClick={sendMessage} style={buttonStyle}><FiSend size={20} /></button>
-
           <button onClick={toggleRecording} style={buttonStyle}>
             <div style={{ position: "relative" }}>
               <FiMic size={20} color={recording ? "#f44336" : "#fff"} />
-              {recording && <span style={{
-                position: "absolute",
-                top: -2,
-                right: -2,
-                width: 10,
-                height: 10,
-                borderRadius: "50%",
-                background: "#f44336",
-                animation: "pulse 1s infinite"
-              }} />}
+              {recording && <span style={styles.pulse} />}
             </div>
           </button>
-
-          <button onClick={toggleMute} style={buttonStyle}>
-            {mute ? <FiVolumeX size={20} /> : <FiVolume2 size={20} />}
+          <button onClick={togglePlayMute} style={buttonStyle}>
+            {currentAudioRef.current || currentUtteranceRef.current ? <FiVolumeX size={20} /> : <FiVolume2 size={20} />}
           </button>
           <button onClick={resetConversation} style={{ ...buttonStyle, background: "rgba(244,67,54,0.6)" }}><FiRefreshCw size={20} /></button>
         </div>
@@ -268,8 +284,23 @@ const App: React.FC = () => {
       <style>{`
         @keyframes pulse {
           0% { transform: scale(1); opacity: 1; }
-          50% { transform: scale(1.5); opacity: 0.5; }
+          50% { transform: scale(1.3); opacity: 0.6; }
           100% { transform: scale(1); opacity: 1; }
+        }
+        @keyframes heartbeat {
+          0%, 100% { transform: scale(1); }
+          25% { transform: scale(1.15); }
+          50% { transform: scale(1); }
+          75% { transform: scale(1.15); }
+        }
+        @keyframes fadeIn {
+          0% { opacity: 0; transform: translateY(10px); }
+          100% { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes blink {
+          0% { opacity: 0.2; }
+          50% { opacity: 1; }
+          100% { opacity: 0.2; }
         }
       `}</style>
     </div>
@@ -283,7 +314,8 @@ const styles: Record<string, React.CSSProperties> = {
   flag: { width: 40, height: 30, borderRadius: 20 },
   chatArea: { flex: 1, padding: 6, display: "flex", flexDirection: "column", overflowY: "auto", gap: 6, backgroundImage: "url('/chat-bg.png')", backgroundSize: "cover", backgroundPosition: "center", backgroundRepeat: "no-repeat" },
   inputArea: { display: "flex", alignItems: "flex-end", padding: 6, borderTop: "1px solid rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.15)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", gap: 5 },
-  textarea: { flex: 1, padding: "8px 12px", borderRadius: 20, border: "1px solid rgba(255,255,255,0.5)", fontSize: 14, outline: "none", resize: "none", background: "rgba(255,255,255,0.25)", color: "#0277bd", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", maxHeight: 150 }
+  textarea: { flex: 1, padding: "8px 12px", borderRadius: 20, border: "1px solid rgba(255,255,255,0.5)", fontSize: 14, outline: "none", resize: "none", background: "rgba(255,255,255,0.25)", color: "#0277bd", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", maxHeight: 150 },
+  pulse: { position: "absolute", top: -2, right: -2, width: 10, height: 10, borderRadius: "50%", background: "#f44336", animation: "pulse 1s infinite" }
 };
 
 const buttonStyle: React.CSSProperties = { padding: 8, borderRadius: "50%", background: "rgba(3,169,244,0.6)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" };
