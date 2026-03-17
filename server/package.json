@@ -11,6 +11,9 @@
   "keywords": ["chatbot", "medical", "AI", "express"],
   "author": "Dr. Chiremba AI",
   "license": "ISC",
+  "engines": {
+    "node": "20.x"
+  },
   "dependencies": {
     "axios": "^1.13.6",
     "cors": "^2.8.6",
