@@ -1,46 +1,631 @@
-# Getting Started with Create React App
+# 🩺 Dr. Chiremba AI
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
 
-## Available Scripts
 
-In the project directory, you can run:
+![React](https://img.shields.io/badge/React-Frontend-blue)
 
-### `npm start`
+![Node.js](https://img.shields.io/badge/Node.js-Backend-green)
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+![AI](https://img.shields.io/badge/AI-GPT4o-purple)
 
-The page will reload if you make edits.\
-You will also see any lint errors in the console.
+![Voice](https://img.shields.io/badge/Voice-ElevenLabs-orange)
 
-### `npm test`
+![License](https://img.shields.io/badge/License-MIT-lightgrey)
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
 
-### `npm run build`
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+Dr. Chiremba AI is a **voice-enabled AI medical assistant built for Zimbabwe 🇿🇼** that helps people understand symptoms and receive basic medical guidance using **text or voice**.
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
 
-### `npm run eject`
+The system supports **English, Shona, and Ndebele**, making healthcare information more accessible to local communities.
 
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
 
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
+———————————————
 
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
+# 🌍 Vision
 
-## Learn More
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+Millions of people in Africa struggle to access immediate medical guidance.
+
+
+
+Dr. Chiremba AI aims to provide:
+
+
+
+• Instant symptom understanding
+
+• Medical guidance in local languages
+
+• Voice interaction for accessibility
+
+• Basic healthcare education
+
+
+
+This project demonstrates how **AI can improve healthcare accessibility in developing regions.**
+
+———————————————
+
+
+
+# ✨ Features
+
+
+
+## 🧠 AI Medical Doctor
+
+
+
+Powered by **GPT-4o via OpenRouter**
+
+
+
+• Understands symptoms
+
+• Provides medical advice
+
+• Suggests safe OTC medication
+
+• Maintains conversation context
+
+
+
+———————————————
+
+
+
+## 🌐 Multilingual Support
+
+
+
+Automatically detects and replies in:
+
+
+
+🇬🇧 English
+
+🇿🇼 Shona
+
+🇿🇼 Ndebele
+
+
+
+———————————————
+
+
+
+## 🎤 Voice Input
+
+
+
+Users can **speak symptoms** instead of typing.
+
+
+
+Uses:
+
+
+
+• Web Speech API
+
+• Real-time speech recognition
+
+
+
+———————————————
+
+
+
+## 🔊 AI Voice Response
+
+
+
+Responses are spoken using:
+
+
+
+**ElevenLabs Text-to-Speech**
+
+
+
+If ElevenLabs fails, the browser uses **SpeechSynthesis fallback**.
+
+
+
+———————————————
+
+
+
+## 💬 Smart Conversation Memory
+
+
+
+The AI remembers the conversation:
+
+
+
+• Tracks symptoms over time
+
+• Asks follow-up questions
+
+• Maintains context
+
+
+
+———————————————
+
+
+
+## 🧑‍⚕️ Medical Only Responses
+
+
+
+The AI is configured to:
+
+
+
+✔ Answer **medical questions only**
+
+✔ Refuse unrelated topics
+
+
+
+If a user asks something unrelated, it replies humorously like a real doctor.
+
+
+
+Example:
+
+
+
+User:
+
+Who won the World Cup?
+
+
+
+Dr. Chiremba AI:
+
+Ahh my friend 😄 I treat headaches, not football scores. But if watching the match gave you stress, tell me about your symptoms!
+
+
+
+———————————————
+
+
+
+# 🎨 Modern Interface
+
+
+
+The UI uses **glassmorphism inspired by modern iOS design**.
+
+
+
+Features:
+
+
+
+• Frosted glass chat interface
+
+• Medical blue theme
+
+• Chat background image
+
+• Smooth scrolling
+
+• Mobile friendly
+
+
+
+———————————————
+
+
+
+# 🖥️ Screenshots
+
+
+
+/screen.png
+
+/chat.png
+
+
+
+———————————————
+
+
+
+# 🏗️ System Architecture
+
+
+
+` ` `
+
+User (Voice/Text)
+
+│
+
+▼
+
+React Frontend (App.tsx)
+
+│
+
+▼
+
+Node.js Express Server
+
+│
+
+▼
+
+OpenRouter GPT-4o
+
+│
+
+▼
+
+AI Response
+
+│
+
+▼
+
+ElevenLabs Voice
+
+│
+
+▼
+
+Audio + Text Response
+
+│
+
+▼
+
+Frontend Chat UI
+
+```
+
+
+
+———————————————
+
+
+
+# 🛠 Tech Stack
+
+
+
+Frontend
+
+
+
+• React
+
+• TypeScript
+
+• Axios
+
+• React Icons
+
+
+
+Backend
+
+
+
+• Node.js
+
+• Express
+
+• Axios
+
+
+
+AI Services
+
+
+
+• OpenRouter (GPT-4o)
+
+• ElevenLabs Voice AI
+
+
+
+———————————————
+
+
+
+# 📂 Project Structure
+
+
+
+```
+
+chiremba-ai
+
+│
+
+├── public
+
+│ ├── chat-bg.png
+
+│ └── zim-flag.png
+
+│
+
+├── src
+
+│ └── App.tsx
+
+│
+
+├── server
+
+│ └── server.js
+
+│
+
+├── screenshots
+
+│ └── chat.png
+
+│
+
+├── package.json
+
+└── README.md
+
+```
+
+
+
+———————————————
+
+
+
+# ⚙️ Installation
+
+
+
+## 1 Clone the Repository
+
+
+
+```
+
+git clone https://github.com/YOUR_USERNAME/chiremba-ai.git
+
+cd chiremba-ai
+
+```
+
+———————————————
+
+
+
+## 2 Install Frontend Dependencies
+
+
+
+```
+
+npm install
+
+```
+
+
+
+———————————————
+
+
+
+## 3 Install Backend Dependencies
+
+
+
+```
+
+cd server
+
+npm install express cors axios
+
+```
+
+
+
+———————————————
+
+
+
+# 🔑 Environment Setup
+
+
+
+Edit:
+
+
+
+```
+
+server/server.js
+
+```
+
+
+
+Add your API keys:
+
+
+
+```
+
+const OPENROUTER_API_KEY = "YOUR_OPENROUTER_KEY";
+
+const ELEVENLABS_API_KEY = "YOUR_ELEVENLABS_KEY";
+
+```
+
+
+
+———————————————
+
+
+
+# ▶ Running the Application
+
+
+
+## Start Backend Server
+
+
+
+```
+
+node server/server.js
+
+```
+
+
+
+Server runs on:
+
+
+
+```
+
+http://localhost:5000
+
+```
+
+
+
+———————————————
+
+## Start Frontend
+
+
+
+```
+
+npm start
+
+```
+
+
+
+Frontend runs on:
+
+
+
+```
+
+http://localhost:3000
+
+```
+
+
+
+———————————————
+
+
+
+# 📱 How It Works
+
+
+
+1. User types or speaks symptoms
+
+2. React sends request to backend
+
+3. Backend sends message to GPT-4o
+
+4. AI generates medical guidance
+
+5. ElevenLabs converts response to speech
+
+6. Chat interface displays and plays the response
+
+
+
+———————————————
+
+
+
+# ⚠️ Medical Disclaimer
+
+
+
+Dr. Chiremba AI is **not a licensed medical professional**.
+
+
+
+This system provides **general health information only** and **must not replace professional medical advice.**
+
+
+
+For serious conditions always consult a **qualified doctor or hospital.**
+
+
+
+———————————————
+
+
+
+# 🚀 Future Improvements
+
+
+
+• WhatsApp integration
+
+• Offline rural mode
+
+• Zimbabwe hospital locator
+
+• Medication database
+
+• Mobile app version
+
+
+
+———————————————
+
+
+
+# 👨‍💻 Author
+
+
+
+**Arnold Ndlovu**
+
+Creator of **Dr. Chiremba AI**
+
+
+
+Zimbabwe 🇿🇼
+
+
+
+———————————————
+
+
+
+# ⭐ Support the Project
+
+
+
+If you like this project:
+
+
+
+⭐ Star the repository
+
+🍴 Fork the project
+
+🚀 Share with others
