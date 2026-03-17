@@ -23,6 +23,10 @@ const App: React.FC = () => {
   const [mute, setMute] = useState<boolean>(false);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
 
+  // Track current audio/speech
+  const currentAudioRef = useRef<HTMLAudioElement | null>(null);
+  const currentUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chat, typing]);
@@ -48,7 +52,6 @@ const App: React.FC = () => {
       setRecognitionInstance(recognition);
 
       recognition.onresult = (event: any) => {
-        // TypeScript-safe: cast event to any
         let transcript = "";
         const startIndex = event.resultIndex ?? 0;
         for (let i = startIndex; i < event.results.length; i++) {
@@ -77,9 +80,23 @@ const App: React.FC = () => {
     }
   };
 
-  const speakFallback = (text: string, lang?: string) => {
+  // Stop current speech/audio immediately
+  const stopSpeech = () => {
+    if (currentAudioRef.current) {
+      currentAudioRef.current.pause();
+      currentAudioRef.current.currentTime = 0;
+      currentAudioRef.current = null;
+    }
+    if (currentUtteranceRef.current) {
+      window.speechSynthesis.cancel();
+      currentUtteranceRef.current = null;
+    }
+  };
+
+  const speakText = (text: string, lang?: string) => {
     if (mute) return;
     const speech = new SpeechSynthesisUtterance(text);
+    currentUtteranceRef.current = speech;
     speech.lang = lang || detectLanguage(text);
     speech.rate = 1;
     speech.pitch = 1;
@@ -88,20 +105,27 @@ const App: React.FC = () => {
 
   const playAudio = (base64Audio: string | null, text: string) => {
     if (mute) return;
-    if (!base64Audio) return speakFallback(text);
-    try {
-      const base64Data = base64Audio.replace(/^data:audio\/mpeg;base64,/, "");
-      const byteChars = atob(base64Data);
-      const byteNumbers = new Array(byteChars.length);
-      for (let i = 0; i < byteChars.length; i++) byteNumbers[i] = byteChars.charCodeAt(i);
-      const byteArray = new Uint8Array(byteNumbers);
-      const blob = new Blob([byteArray], { type: "audio/mpeg" });
-      const url = URL.createObjectURL(blob);
-      const audio = new Audio(url);
-      audio.play();
-    } catch {
-      speakFallback(text);
+
+    if (base64Audio) {
+      try {
+        const base64Data = base64Audio.replace(/^data:audio\/mpeg;base64,/, "");
+        const byteChars = atob(base64Data);
+        const byteNumbers = new Array(byteChars.length);
+        for (let i = 0; i < byteChars.length; i++) byteNumbers[i] = byteChars.charCodeAt(i);
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: "audio/mpeg" });
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        currentAudioRef.current = audio;
+        audio.play();
+        audio.onended = () => (currentAudioRef.current = null);
+        return;
+      } catch {
+        // fallback if audio fails
+      }
     }
+    // Always speak text if audio is missing
+    speakText(text);
   };
 
   const sendMessage = async () => {
@@ -113,14 +137,16 @@ const App: React.FC = () => {
     try {
       const res = await axios.post("https://chiremba-ai.onrender.com/chat", { message });
       const reply: string = res.data.response;
-      setTimeout(() => {
-        setChat(prev => [...prev, { sender: "doctor", text: reply, audio: !!res.data.audio }]);
-        playAudio(res.data.audio ?? null, reply);
-        setTyping(false);
-        setLoading(false);
-      }, 400);
+
+      // Add doctor message immediately
+      setChat(prev => [...prev, { sender: "doctor", text: reply, audio: !!res.data.audio }]);
+      playAudio(res.data.audio ?? null, reply);
+      setTyping(false);
+      setLoading(false);
     } catch {
-      setChat(prev => [...prev, { sender: "doctor", text: "Server error" }]);
+      const errorMsg = "Server error";
+      setChat(prev => [...prev, { sender: "doctor", text: errorMsg }]);
+      speakText(errorMsg);
       setTyping(false);
       setLoading(false);
     }
@@ -138,6 +164,14 @@ const App: React.FC = () => {
   };
 
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => setMessage(e.target.value);
+
+  const toggleMute = () => {
+    setMute(prev => {
+      const newMute = !prev;
+      if (newMute) stopSpeech(); // stop any ongoing audio/speech immediately
+      return newMute;
+    });
+  };
 
   return (
     <div style={styles.container}>
@@ -190,7 +224,7 @@ const App: React.FC = () => {
           <button onClick={toggleRecording} style={buttonStyle}>
             <FiMic size={20} color={recording ? "#f44336" : "#fff"} />
           </button>
-          <button onClick={() => setMute(prev => !prev)} style={buttonStyle}>
+          <button onClick={toggleMute} style={buttonStyle}>
             {mute ? <FiVolumeX size={20} /> : <FiVolume2 size={20} />}
           </button>
           <button onClick={resetConversation} style={{ ...buttonStyle, background: "rgba(244,67,54,0.6)" }}><FiRefreshCw size={20} /></button>
