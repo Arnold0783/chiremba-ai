@@ -231,7 +231,6 @@ Features:
 
 
 /screen.png
-
 /chat.png
 
 
