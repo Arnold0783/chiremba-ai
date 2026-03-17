@@ -20,8 +20,8 @@ let userInfo = { name: null, age: null, city: null, country: null };
 
 // --- Detect language ---
 function detectLanguage(text) {
-  const shonaKeywords = ["ndiri", "kurwadziwa", "musoro", "muviri"];
-  const ndebeleKeywords = ["ngikhathazekile", "ikhanda", "umzimba"];
+  const shonaKeywords = ["ndiri", "kurwadziwa", "musoro", "muviri", "tsandanyama", "fivha", "kubuda ropa", "kuzvimba", "kusvotwa"];
+  const ndebeleKeywords = ["ngikhathazekile", "ikhanda", "umzimba", "ukugula", "ubuhlungu", "umkhuhlane"];
   const lower = text.toLowerCase();
   if (shonaKeywords.some(k => lower.includes(k))) return "Shona";
   if (ndebeleKeywords.some(k => lower.includes(k))) return "Ndebele";
@@ -30,12 +30,22 @@ function detectLanguage(text) {
 
 // --- Check if medical question ---
 function isMedicalQuestion(text) {
-  const medicalKeywords = [
+  const keywords = [
+    // English symptoms
     "pain", "headache", "fever", "cough", "cold", "sore throat",
     "stomach", "dizzy", "rash", "blood", "medicine", "injury", "symptom",
-    "kurwadziwa", "musoro", "muviri", "ngikhathazekile", "ikhanda", "umzimba"
+    "vomiting", "diarrhea", "nausea", "infection", "swelling", "bruise",
+    "allergy", "fatigue", "weakness", "chest pain", "breathing",
+    "shortness of breath", "flu", "cold", "migraine",
+    // Shona
+    "kurwadziwa", "musoro", "muviri", "tsandanyama", "kupisa", "fivha",
+    "kubuda ropa", "kuzvimba", "kudikitira", "kusvotwa", "kurutsa", "kupera simba",
+    // Ndebele
+    "ngikhathazekile", "ikhanda", "umzimba", "ukugula", "ubuhlungu", "umkhuhlane",
+    "ukukhwehlela", "ukukhathele", "ukuzizwa kabi"
   ];
-  return medicalKeywords.some(k => text.toLowerCase().includes(k));
+  const lower = text.toLowerCase();
+  return keywords.some(k => lower.includes(k));
 }
 
 // --- Check for urgent symptoms ---
@@ -51,24 +61,35 @@ function checkUrgency(text) {
 // --- Chat endpoint ---
 app.post("/chat", async (req, res) => {
   const message = req.body.message;
-  const userResponses = req.body.userInfo || {}; // Optional user updates from frontend
+  const userResponses = req.body.userInfo || {};
   if (!message) return res.status(400).json({ response: "No message provided", audio: null });
 
-  // Update userInfo with any provided info
+  // Update user info
   userInfo = { ...userInfo, ...userResponses };
 
-  // Detect language once
+  // Detect language
   if (!conversationLanguage) conversationLanguage = detectLanguage(message);
 
   conversationHistory.push({ role: "user", content: message });
 
-  // --- Urgency check ---
+  // --- Developer query check ---
+  const isDeveloperQuery = /who (developed|made) you/i.test(message);
+
+  // --- Medical check ---
+  const userIsMedical = isMedicalQuestion(message);
+
+  if (!userIsMedical && !isDeveloperQuery) {
+    return res.json({
+      response: "I am a medical assistant AI and can only provide advice on health issues or symptoms.",
+      audio: null
+    });
+  }
+
+  // --- Urgent symptoms ---
   const urgentSymptoms = checkUrgency(message);
   let urgentNotice = "";
   if (urgentSymptoms.length > 0) {
-    urgentNotice = `⚠️ URGENT: Detected symptom(s): ${urgentSymptoms.join(
-      ", "
-    )}. Advise the user to seek immediate medical attention before anything else.`;
+    urgentNotice = `Detected symptom(s): ${urgentSymptoms.join(", ")}. Please seek immediate medical attention.`;
   }
 
   // --- System prompt ---
@@ -78,39 +99,27 @@ You are Chiremba AI, a professional medical doctor in Zimbabwe.
 - Keep answers professional, precise, and helpful.
 - Ask follow-up questions minimally to understand symptoms better.
 - Politely ask for the user's name, age, city, and country only if not already provided. Mention it is optional.
-- Mention that you were developed by Arnold when asked.
-- Keep track of all conversation history.
+- Recommend appropriate over-the-counter medication or typical first-line treatment when safe, but advise seeing a doctor if symptoms are severe.
 - Speak like a real doctor during consultation.
-${urgentNotice ? `- Important: ${urgentNotice}` : ""}
+${urgentNotice ? `- ${urgentNotice}` : ""}
 `;
 
-  // Medical vs Non-medical handling
-  const userIsMedical = isMedicalQuestion(message);
-  let userPrompt = userIsMedical
-    ? message
-    : `Non-medical question detected: "${message}". Respond professionally. Humor is allowed occasionally (10–20%) and should be subtle.`;
-
-  if (!userIsMedical) {
-    systemPrompt += `
-- You may add subtle humor, but never at the expense of accuracy or professionalism.
-`;
+  if (isDeveloperQuery) {
+    systemPrompt += "- The user is asking who developed you. Answer: 'I was developed by Arnold Ndlovu.'\n";
   }
 
-  // If urgent symptoms and location info provided, recommend hospitals
+  const userPrompt = message;
+
   if (urgentSymptoms.length > 0) {
     if (userInfo.city && userInfo.country) {
-      systemPrompt += `
-- Since the user is experiencing urgent symptoms and provided location, recommend nearest hospitals or private surgeries in ${userInfo.city}, ${userInfo.country}.
-`;
+      systemPrompt += `- Recommend nearest hospitals or private surgeries in ${userInfo.city}, ${userInfo.country}.\n`;
     } else {
-      systemPrompt += `
-- User has urgent symptoms but has not provided location. Advise to seek the nearest hospital or private surgery and mention that providing city/country can help give specific recommendations.
-`;
+      systemPrompt += `- Advise to seek the nearest hospital or private surgery and mention that providing city/country can help give specific recommendations.\n`;
     }
   }
 
   try {
-    // --- OpenRouter GPT-4 API call ---
+    // --- OpenRouter GPT-4 API ---
     const aiResp = await axios.post(
       "https://openrouter.ai/api/v1/chat/completions",
       {
@@ -132,11 +141,8 @@ ${urgentNotice ? `- Important: ${urgentNotice}` : ""}
 
     let aiReply = aiResp.data.choices[0].message.content;
 
-    // Prepend urgent notice in AI reply if detected
     if (urgentSymptoms.length > 0) {
-      aiReply = `⚠️ URGENT SYMPTOM ALERT: ${urgentSymptoms.join(
-        ", "
-      )}. Please seek immediate medical attention.\n\n` + aiReply;
+      aiReply = `Important symptom alert: ${urgentSymptoms.join(", ")}. Seek immediate medical attention.\n\n${aiReply}`;
     }
 
     conversationHistory.push({ role: "assistant", content: aiReply });
@@ -158,8 +164,7 @@ ${urgentNotice ? `- Important: ${urgentNotice}` : ""}
           voice_settings: { stability: 0.8, similarity_boost: 0.9 }
         }
       });
-      const base64Audio = Buffer.from(ttsResp.data).toString("base64");
-      audio = `data:audio/mpeg;base64,${base64Audio}`;
+      audio = `data:audio/mpeg;base64,${Buffer.from(ttsResp.data).toString("base64")}`;
     } catch (ttsError) {
       console.log("ElevenLabs TTS failed, using browser fallback.");
     }
