@@ -68,20 +68,20 @@ function App(): JSX.Element {
 
   const sendMessage = async () => {
     if (message.trim() === "" || loading) return;
-    setChat(prev => [...prev, { sender: "user", text: message }]);
+    setChat((prev: any) => [...prev, { sender: "user", text: message }]);
     setLoading(true);
     setTyping(true);
     try {
       const res = await axios.post("https://chiremba-ai.onrender.com/chat", { message });
       const reply = res.data.response;
       setTimeout(() => {
-        setChat(prev => [...prev, { sender: "doctor", text: reply }]);
+        setChat((prev: any) => [...prev, { sender: "doctor", text: reply }]);
         playAudio(res.data.audio, reply);
         setTyping(false);
         setLoading(false);
       }, 400);
     } catch {
-      setChat(prev => [...prev, { sender: "doctor", text: "Server error" }]);
+      setChat((prev: any) => [...prev, { sender: "doctor", text: "Server error" }]);
       setTyping(false);
       setLoading(false);
     }
@@ -152,7 +152,7 @@ function App(): JSX.Element {
           backgroundPosition: "center",
           backgroundRepeat: "no-repeat",
         }}>
-          {chat.map((msg, idx) => (
+          {chat.map((msg: { sender: string; text: any; }, idx: any) => (
             <div key={idx} style={{
               display: "flex",
               justifyContent: msg.sender === "user" ? "flex-end" : "flex-start"
@@ -206,7 +206,7 @@ function App(): JSX.Element {
         }}>
           <input
             value={message}
-            onChange={e => setMessage(e.target.value)}
+            onChange={(e: { target: { value: any; }; }) => setMessage(e.target.value)}
             placeholder="Type a message..."
             style={{
               flex: 1,
@@ -220,7 +220,7 @@ function App(): JSX.Element {
               backdropFilter: "blur(10px)",
               WebkitBackdropFilter: "blur(10px)"
             }}
-            onKeyDown={e => e.key === "Enter" && sendMessage()}
+            onKeyDown={(e: { key: string; }) => e.key === "Enter" && sendMessage()}
           />
           <button onClick={sendMessage} style={{
             padding: "12px",
