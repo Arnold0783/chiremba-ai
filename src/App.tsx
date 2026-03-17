@@ -3,7 +3,7 @@ import axios from "axios";
 import { FiSend, FiMic, FiRefreshCw, FiVolume2, FiVolumeX } from "react-icons/fi";
 
 // Web Speech API
-const SpeechRecognition =
+const SpeechRecognitionConstructor =
   (window as any).SpeechRecognition ||
   (window as any).webkitSpeechRecognition;
 
@@ -37,9 +37,9 @@ const App: React.FC = () => {
   };
 
   const startListening = () => {
-    if (!SpeechRecognition) return alert("Voice recognition not supported.");
+    if (!SpeechRecognitionConstructor) return alert("Voice recognition not supported.");
     try {
-      const recognition = new SpeechRecognition();
+      const recognition = new SpeechRecognitionConstructor();
       recognition.lang = "en-US";
       recognition.continuous = true;
       recognition.interimResults = true;
@@ -47,17 +47,18 @@ const App: React.FC = () => {
       setRecording(true);
       setRecognitionInstance(recognition);
 
-      recognition.onresult = (event: { results: SpeechRecognitionResultList }) => {
+      recognition.onresult = (event: any) => {
+        // TypeScript-safe: cast event to any
         let transcript = "";
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          transcript += event.results[i][0].transcript;
+        const startIndex = event.resultIndex ?? 0;
+        for (let i = startIndex; i < event.results.length; i++) {
+          if (event.results[i][0]) transcript += event.results[i][0].transcript;
         }
         setMessage(transcript);
       };
 
       recognition.onend = () => {
         setRecording(false);
-        // auto-restart if still recording
         if (recognitionInstance) recognition.start();
       };
     } catch {
@@ -141,16 +142,16 @@ const App: React.FC = () => {
   return (
     <div style={styles.container}>
       <div style={styles.chatBox}>
-   {/* HEADER */}
-<div style={styles.header}>
-  <img src="/zim-flag.png" alt="Zimbabwe Flag" style={styles.flag} />
-  <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-    <span style={{ fontWeight: "bold", fontSize: 20, color: "#0277bd" }}>DR. CHIREMBA</span>
-    <span style={{ fontWeight: "normal", fontSize: 10, color: "#555" }}>
-      Full stack development by Arnold Ndlovu
-    </span>
-  </div>
-</div>
+        {/* HEADER */}
+        <div style={styles.header}>
+          <img src="/zim-flag.png" alt="Zimbabwe Flag" style={styles.flag} />
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+            <span style={{ fontWeight: "bold", fontSize: 20, color: "#0277bd" }}>DR. CHIREMBA</span>
+            <span style={{ fontWeight: "normal", fontSize: 10, color: "#555" }}>
+              Full stack development by Arnold Ndlovu
+            </span>
+          </div>
+        </div>
 
         {/* CHAT AREA */}
         <div style={styles.chatArea}>
@@ -201,106 +202,22 @@ const App: React.FC = () => {
 
 // Styles
 const styles: Record<string, React.CSSProperties> = {
-  container: {
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    height: "100vh",
-    fontFamily: "'Segoe UI', sans-serif",
-    background: "linear-gradient(135deg, #e0f7fa, #b2ebf2)",
-    padding: 5
-  },
-  chatBox: {
-    width: "100%",
-    maxWidth: 420,
-    height: "95vh",
-    display: "flex",
-    flexDirection: "column",
-    borderRadius: 20,
-    overflow: "hidden",
-    boxShadow: "0 15px 40px rgba(0,0,0,0.15)",
-    background: "rgba(255,255,255,0.15)",
-    backdropFilter: "blur(25px)",
-    WebkitBackdropFilter: "blur(25px)",
-    border: "1px solid rgba(255,255,255,0.3)"
-  },
-  header: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    fontWeight: "bold",
-    fontSize: 20,
-    color: "#0277bd",
-    padding: 8,
-    background: "rgba(224,247,250,0.6)",
-    backdropFilter: "blur(8px)",
-    WebkitBackdropFilter: "blur(8px)",
-    borderBottom: "1px solid rgba(2,1,82,0.3)"
-  },
-  flag: {
-    width: 40,
-    height: 30,
-    borderRadius: 20
-  },
-  chatArea: {
-    flex: 1,
-    padding: 6,
-    display: "flex",
-    flexDirection: "column",
-    overflowY: "auto",
-    gap: 6,
-    backgroundImage: "url('/chat-bg.png')",
-    backgroundSize: "cover",
-    backgroundPosition: "center",
-    backgroundRepeat: "no-repeat"
-  },
-  inputArea: {
-    display: "flex",
-    alignItems: "center",
-    padding: 6,
-    borderTop: "1px solid rgba(255,255,255,0.3)",
-    background: "rgba(255,255,255,0.15)",
-    backdropFilter: "blur(20px)",
-    WebkitBackdropFilter: "blur(20px)",
-    gap: 5
-  },
-  input: {
-    flex: 1,
-    padding: "8px 12px",
-    borderRadius: 20,
-    border: "1px solid rgba(255,255,255,0.5)",
-    fontSize: 14,
-    outline: "none",
-    background: "rgba(255,255,255,0.25)",
-    color: "#0277bd",
-    backdropFilter: "blur(10px)",
-    WebkitBackdropFilter: "blur(10px)"
-  }
+  container: { display: "flex", justifyContent: "center", alignItems: "center", height: "100vh", fontFamily: "'Segoe UI', sans-serif", background: "linear-gradient(135deg, #e0f7fa, #b2ebf2)", padding: 5 },
+  chatBox: { width: "100%", maxWidth: 420, height: "95vh", display: "flex", flexDirection: "column", borderRadius: 20, overflow: "hidden", boxShadow: "0 15px 40px rgba(0,0,0,0.15)", background: "rgba(255,255,255,0.15)", backdropFilter: "blur(25px)", WebkitBackdropFilter: "blur(25px)", border: "1px solid rgba(255,255,255,0.3)" },
+  header: { display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontWeight: "bold", fontSize: 20, color: "#0277bd", padding: 8, background: "rgba(224,247,250,0.6)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)", borderBottom: "1px solid rgba(2,1,82,0.3)" },
+  flag: { width: 40, height: 30, borderRadius: 20 },
+  chatArea: { flex: 1, padding: 6, display: "flex", flexDirection: "column", overflowY: "auto", gap: 6, backgroundImage: "url('/chat-bg.png')", backgroundSize: "cover", backgroundPosition: "center", backgroundRepeat: "no-repeat" },
+  inputArea: { display: "flex", alignItems: "center", padding: 6, borderTop: "1px solid rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.15)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", gap: 5 },
+  input: { flex: 1, padding: "8px 12px", borderRadius: 20, border: "1px solid rgba(255,255,255,0.5)", fontSize: 14, outline: "none", background: "rgba(255,255,255,0.25)", color: "#0277bd", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)" }
 };
 
-const buttonStyle: React.CSSProperties = {
-  padding: 8,
-  borderRadius: "50%",
-  background: "rgba(3,169,244,0.6)",
-  border: "none",
-  cursor: "pointer",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-};
+const buttonStyle: React.CSSProperties = { padding: 8, borderRadius: "50%", background: "rgba(3,169,244,0.6)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" };
 
-// Typing indicator
 const TypingIndicator: React.FC = () => (
   <div style={{ display: "flex", justifyContent: "flex-start" }}>
-    <span style={{
-      padding: "4px 10px",
-      borderRadius: 15,
-      background: "rgba(77,12,126,0.25)",
-      color: "#f8fbfc",
-      fontSize: 12,
-      animation: "blink 1.2s infinite"
-    }}>Dr. Chiremba is typing...</span>
+    <span style={{ padding: "4px 10px", borderRadius: 15, background: "rgba(77,12,126,0.25)", color: "#f8fbfc", fontSize: 12, animation: "blink 1.2s infinite" }}>
+      Dr. Chiremba is typing...
+    </span>
   </div>
 );
 
