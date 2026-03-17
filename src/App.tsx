@@ -22,14 +22,23 @@ const App: React.FC = () => {
   const [recognitionInstance, setRecognitionInstance] = useState<any>(null);
   const [mute, setMute] = useState<boolean>(false);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
-  // Track current audio/speech
   const currentAudioRef = useRef<HTMLAudioElement | null>(null);
   const currentUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chat, typing]);
+
+  useEffect(() => {
+    // Auto-resize textarea
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height = textareaRef.current.scrollHeight + "px";
+    }
+  }, [message]);
 
   const detectLanguage = (text: string) => {
     const shonaKeywords = ["ndiri", "kurwadziwa", "musoro", "muviri"];
@@ -42,30 +51,36 @@ const App: React.FC = () => {
 
   const startListening = () => {
     if (!SpeechRecognitionConstructor) return alert("Voice recognition not supported.");
+    stopSpeech();
+
     try {
-      const recognition = new SpeechRecognitionConstructor();
-      recognition.lang = "en-US";
-      recognition.continuous = true;
-      recognition.interimResults = true;
+      let recognition = recognitionInstance;
+      if (!recognition) {
+        recognition = new SpeechRecognitionConstructor();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = "en-US";
+
+        recognition.onresult = (event: any) => {
+          let transcript = "";
+          const startIndex = event.resultIndex ?? 0;
+          for (let i = startIndex; i < event.results.length; i++) {
+            transcript += event.results[i][0].transcript;
+          }
+          setMessage(transcript);
+        };
+
+        recognition.onerror = (event: any) => console.error("Speech recognition error:", event.error);
+        recognition.onend = () => setRecording(false);
+
+        setRecognitionInstance(recognition);
+      }
+
       recognition.start();
       setRecording(true);
-      setRecognitionInstance(recognition);
-
-      recognition.onresult = (event: any) => {
-        let transcript = "";
-        const startIndex = event.resultIndex ?? 0;
-        for (let i = startIndex; i < event.results.length; i++) {
-          if (event.results[i][0]) transcript += event.results[i][0].transcript;
-        }
-        setMessage(transcript);
-      };
-
-      recognition.onend = () => {
-        setRecording(false);
-        if (recognitionInstance) recognition.start();
-      };
-    } catch {
-      alert("Voice recognition failed. Use Chrome for best results.");
+    } catch (err) {
+      console.error(err);
+      alert("Voice recognition failed. Use Chrome or Safari for best results.");
     }
   };
 
@@ -75,12 +90,10 @@ const App: React.FC = () => {
       recognitionInstance.stop();
       setRecording(false);
     } else {
-      recognitionInstance.start();
-      setRecording(true);
+      startListening();
     }
   };
 
-  // Stop current speech/audio immediately
   const stopSpeech = () => {
     if (currentAudioRef.current) {
       currentAudioRef.current.pause();
@@ -95,6 +108,7 @@ const App: React.FC = () => {
 
   const speakText = (text: string, lang?: string) => {
     if (mute) return;
+    stopSpeech();
     const speech = new SpeechSynthesisUtterance(text);
     currentUtteranceRef.current = speech;
     speech.lang = lang || detectLanguage(text);
@@ -105,6 +119,7 @@ const App: React.FC = () => {
 
   const playAudio = (base64Audio: string | null, text: string) => {
     if (mute) return;
+    stopSpeech();
 
     if (base64Audio) {
       try {
@@ -115,17 +130,20 @@ const App: React.FC = () => {
         const byteArray = new Uint8Array(byteNumbers);
         const blob = new Blob([byteArray], { type: "audio/mpeg" });
         const url = URL.createObjectURL(blob);
+
+        if (!audioContextRef.current)
+          audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+        audioContextRef.current.resume();
+
         const audio = new Audio(url);
         currentAudioRef.current = audio;
-        audio.play();
+        audio.play().catch(() => speakText(text));
         audio.onended = () => (currentAudioRef.current = null);
         return;
       } catch {
-        // fallback if audio fails
+        speakText(text);
       }
-    }
-    // Always speak text if audio is missing
-    speakText(text);
+    } else speakText(text);
   };
 
   const sendMessage = async () => {
@@ -138,17 +156,19 @@ const App: React.FC = () => {
       const res = await axios.post("https://chiremba-ai.onrender.com/chat", { message });
       const reply: string = res.data.response;
 
-      // Add doctor message immediately
       setChat(prev => [...prev, { sender: "doctor", text: reply, audio: !!res.data.audio }]);
-      playAudio(res.data.audio ?? null, reply);
       setTyping(false);
       setLoading(false);
+
+      setTimeout(() => {
+        if (!mute) playAudio(res.data.audio ?? null, reply);
+      }, 50);
     } catch {
       const errorMsg = "Server error";
       setChat(prev => [...prev, { sender: "doctor", text: errorMsg }]);
-      speakText(errorMsg);
       setTyping(false);
       setLoading(false);
+      if (!mute) speakText(errorMsg);
     }
 
     setMessage("");
@@ -159,16 +179,19 @@ const App: React.FC = () => {
     setChat([]);
   };
 
-  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") sendMessage();
+  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
   };
 
-  const handleChange = (e: ChangeEvent<HTMLInputElement>) => setMessage(e.target.value);
+  const handleChange = (e: ChangeEvent<HTMLTextAreaElement>) => setMessage(e.target.value);
 
   const toggleMute = () => {
     setMute(prev => {
       const newMute = !prev;
-      if (newMute) stopSpeech(); // stop any ongoing audio/speech immediately
+      if (newMute) stopSpeech();
       return newMute;
     });
   };
@@ -190,11 +213,7 @@ const App: React.FC = () => {
         {/* CHAT AREA */}
         <div style={styles.chatArea}>
           {chat.map((msg, idx) => (
-            <div key={idx} style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: msg.sender === "user" ? "flex-end" : "flex-start"
-            }}>
+            <div key={idx} style={{ display: "flex", flexDirection: "column", alignItems: msg.sender === "user" ? "flex-end" : "flex-start" }}>
               <span style={{
                 padding: "10px 14px",
                 borderRadius: 20,
@@ -213,36 +232,58 @@ const App: React.FC = () => {
 
         {/* INPUT AREA */}
         <div style={styles.inputArea}>
-          <input
+          <textarea
+            ref={textareaRef}
             value={message}
             onChange={handleChange}
             onKeyDown={handleKeyDown}
-            placeholder="Type a message..."
-            style={styles.input}
+            placeholder={recording ? "Listening..." : "Type a message..."}
+            style={styles.textarea}
           />
           <button onClick={sendMessage} style={buttonStyle}><FiSend size={20} /></button>
+
           <button onClick={toggleRecording} style={buttonStyle}>
-            <FiMic size={20} color={recording ? "#f44336" : "#fff"} />
+            <div style={{ position: "relative" }}>
+              <FiMic size={20} color={recording ? "#f44336" : "#fff"} />
+              {recording && <span style={{
+                position: "absolute",
+                top: -2,
+                right: -2,
+                width: 10,
+                height: 10,
+                borderRadius: "50%",
+                background: "#f44336",
+                animation: "pulse 1s infinite"
+              }} />}
+            </div>
           </button>
+
           <button onClick={toggleMute} style={buttonStyle}>
             {mute ? <FiVolumeX size={20} /> : <FiVolume2 size={20} />}
           </button>
           <button onClick={resetConversation} style={{ ...buttonStyle, background: "rgba(244,67,54,0.6)" }}><FiRefreshCw size={20} /></button>
         </div>
       </div>
+
+      <style>{`
+        @keyframes pulse {
+          0% { transform: scale(1); opacity: 1; }
+          50% { transform: scale(1.5); opacity: 0.5; }
+          100% { transform: scale(1); opacity: 1; }
+        }
+      `}</style>
     </div>
   );
 };
 
-// Styles
 const styles: Record<string, React.CSSProperties> = {
   container: { display: "flex", justifyContent: "center", alignItems: "center", height: "100vh", fontFamily: "'Segoe UI', sans-serif", background: "linear-gradient(135deg, #e0f7fa, #b2ebf2)", padding: 5 },
   chatBox: { width: "100%", maxWidth: 420, height: "95vh", display: "flex", flexDirection: "column", borderRadius: 20, overflow: "hidden", boxShadow: "0 15px 40px rgba(0,0,0,0.15)", background: "rgba(255,255,255,0.15)", backdropFilter: "blur(25px)", WebkitBackdropFilter: "blur(25px)", border: "1px solid rgba(255,255,255,0.3)" },
   header: { display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontWeight: "bold", fontSize: 20, color: "#0277bd", padding: 8, background: "rgba(224,247,250,0.6)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)", borderBottom: "1px solid rgba(2,1,82,0.3)" },
   flag: { width: 40, height: 30, borderRadius: 20 },
   chatArea: { flex: 1, padding: 6, display: "flex", flexDirection: "column", overflowY: "auto", gap: 6, backgroundImage: "url('/chat-bg.png')", backgroundSize: "cover", backgroundPosition: "center", backgroundRepeat: "no-repeat" },
-  inputArea: { display: "flex", alignItems: "center", padding: 6, borderTop: "1px solid rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.15)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", gap: 5 },
-  input: { flex: 1, padding: "8px 12px", borderRadius: 20, border: "1px solid rgba(255,255,255,0.5)", fontSize: 14, outline: "none", background: "rgba(255,255,255,0.25)", color: "#0277bd", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)" }
+  inputArea: { display: "flex", alignItems: "flex-end", padding: 6, borderTop: "1px solid rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.15)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", gap: 5 },
+  textarea: { flex: 1, padding: "8px 12px", borderRadius: 20, border: "1px solid rgba(255,255,255,0.5)", fontSize: 14, outline: "none", resize: "none", background: "rgba(255,255,255,0.25)", color: "#0277bd", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", maxHeight: 150 }
 };
 
 const buttonStyle: React.CSSProperties = { padding: 8, borderRadius: "50%", background: "rgba(3,169,244,0.6)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" };
