@@ -1,5 +1,4 @@
 // server/server.js
-
 const express = require("express");
 const cors = require("cors");
 const axios = require("axios");
@@ -18,44 +17,50 @@ let conversationHistory = [];
 let conversationLanguage = null;
 let userInfo = { name: null, age: null, city: null, country: null };
 
-// --- Detect language ---
+// --- Language detection ---
 function detectLanguage(text) {
-  const shonaKeywords = ["ndiri", "kurwadziwa", "musoro", "muviri", "tsandanyama", "fivha", "kubuda ropa", "kuzvimba", "kusvotwa"];
-  const ndebeleKeywords = ["ngikhathazekile", "ikhanda", "umzimba", "ukugula", "ubuhlungu", "umkhuhlane"];
+  const shona = ["ndiri", "kurwadziwa", "musoro", "muviri", "tsandanyama", "fivha", "kubuda ropa", "kuzvimba", "kusvotwa"];
+  const ndebele = ["ngikhathazekile", "ikhanda", "umzimba", "ukugula", "ubuhlungu", "umkhuhlane"];
   const lower = text.toLowerCase();
-  if (shonaKeywords.some(k => lower.includes(k))) return "Shona";
-  if (ndebeleKeywords.some(k => lower.includes(k))) return "Ndebele";
+  if (shona.some(k => lower.includes(k))) return "Shona";
+  if (ndebele.some(k => lower.includes(k))) return "Ndebele";
   return "English";
 }
 
-// --- Check if medical question ---
+// --- Medical keyword detection ---
 function isMedicalQuestion(text) {
   const keywords = [
-    // English symptoms
-    "pain", "headache", "fever", "cough", "cold", "sore throat",
-    "stomach", "dizzy", "rash", "blood", "medicine", "injury", "symptom",
-    "vomiting", "diarrhea", "nausea", "infection", "swelling", "bruise",
-    "allergy", "fatigue", "weakness", "chest pain", "breathing",
-    "shortness of breath", "flu", "cold", "migraine",
-    // Shona
-    "kurwadziwa", "musoro", "muviri", "tsandanyama", "kupisa", "fivha",
-    "kubuda ropa", "kuzvimba", "kudikitira", "kusvotwa", "kurutsa", "kupera simba",
-    // Ndebele
-    "ngikhathazekile", "ikhanda", "umzimba", "ukugula", "ubuhlungu", "umkhuhlane",
-    "ukukhwehlela", "ukukhathele", "ukuzizwa kabi"
+    "pain","headache","fever","cough","cold","sore throat","stomach","dizzy","rash","blood",
+    "medicine","injury","symptom","vomiting","diarrhea","nausea","infection","swelling","bruise",
+    "allergy","fatigue","weakness","chest pain","breathing","shortness of breath","flu","migraine",
+    "kurwadziwa","musoro","muviri","tsandanyama","kupisa","fivha","kubuda ropa","kuzvimba",
+    "kudikitira","kusvotwa","kurutsa","kupera simba",
+    "ngikhathazekile","ikhanda","umzimba","ukugula","ubuhlungu","umkhuhlane",
+    "ukukhwehlela","ukukhathele","ukuzizwa kabi"
   ];
   const lower = text.toLowerCase();
   return keywords.some(k => lower.includes(k));
 }
 
-// --- Check for urgent symptoms ---
+// --- Urgent symptoms ---
 function checkUrgency(text) {
-  const urgentKeywords = [
-    "high fever", "chest pain", "severe headache", "bleeding", "unconscious",
-    "difficulty breathing", "shortness of breath", "seizure", "severe injury",
-    "vomiting blood", "fainting", "dizziness", "loss of consciousness"
+  const urgent = [
+    "high fever","chest pain","severe headache","bleeding","unconscious",
+    "difficulty breathing","shortness of breath","seizure","severe injury",
+    "vomiting blood","fainting","dizziness","loss of consciousness"
   ];
-  return urgentKeywords.filter(k => text.toLowerCase().includes(k));
+  return urgent.filter(k => text.toLowerCase().includes(k));
+}
+
+// --- Greetings/Farewells detection ---
+const greetings = /(hi|hello|hey|good morning|good afternoon|good evening)/i;
+const farewells = /(bye|goodbye|see you|later|night)/i;
+
+// --- Generate safe medication suggestion ---
+function generateMedicationPrompt(symptomText, userInfo) {
+  const age = userInfo.age || "unknown age";
+  return `Based on these symptoms: "${symptomText}" and user age: ${age}, recommend safe first-line or over-the-counter medications if appropriate. ` +
+         `Always advise seeing a doctor for severe or persistent symptoms.`;
 }
 
 // --- Chat endpoint ---
@@ -67,84 +72,91 @@ app.post("/chat", async (req, res) => {
   // Update user info
   userInfo = { ...userInfo, ...userResponses };
 
-  // Detect language
+  // Detect language if not set
   if (!conversationLanguage) conversationLanguage = detectLanguage(message);
 
   conversationHistory.push({ role: "user", content: message });
 
-  // --- Developer query check ---
   const isDeveloperQuery = /who (developed|made) you/i.test(message);
-
-  // --- Medical check ---
   const userIsMedical = isMedicalQuestion(message);
 
+  // --- Greetings ---
+  if (greetings.test(message)) {
+    let greetMsg = "Hello! 😄 ";
+    if (!userInfo.name) greetMsg += "May I have your name please? ";
+    greetMsg += "How are you feeling today? Any health concerns I can help with?";
+    return res.json({ response: greetMsg, audio: null });
+  }
+
+  // --- Farewell ---
+  if (farewells.test(message)) {
+    let byeMsg = "Goodbye! Take care and stay healthy 😎.";
+    if (userInfo.name) byeMsg = `Goodbye ${userInfo.name}! Take care and stay healthy 😎.`;
+    return res.json({ response: byeMsg, audio: null });
+  }
+
+  // --- Non-medical witty response ---
   if (!userIsMedical && !isDeveloperQuery) {
     return res.json({
-      response: "I am a medical assistant AI and can only provide advice on health issues or symptoms.",
+      response: "Haha 😅 I’m your friendly doctor AI, not a trivia bot… but I can help with your health! Any symptoms you want to discuss?",
       audio: null
     });
   }
 
   // --- Urgent symptoms ---
   const urgentSymptoms = checkUrgency(message);
-  let urgentNotice = "";
-  if (urgentSymptoms.length > 0) {
-    urgentNotice = `Detected symptom(s): ${urgentSymptoms.join(", ")}. Please seek immediate medical attention.`;
+  let urgentNotice = urgentSymptoms.length > 0 ? `Detected symptom(s): ${urgentSymptoms.join(", ")}. Please seek immediate medical attention.` : "";
+
+  // --- Gentle guidance questions (max 2 per message) ---
+  let followUpPrompt = "";
+  if (userIsMedical) {
+    const missing = [];
+    if (!userInfo.name) missing.push("your name");
+    if (!userInfo.age) missing.push("your age");
+    if (!userInfo.city) missing.push("your city");
+    if (!userInfo.country) missing.push("your country");
+
+    if (missing.length > 0) followUpPrompt = missing.slice(0,2).map(info => `Could you tell me ${info}?`).join(" ");
+    else followUpPrompt = "Can you describe the severity and duration of your symptoms?";
   }
 
   // --- System prompt ---
   let systemPrompt = `
 You are Chiremba AI, a professional medical doctor in Zimbabwe.
-- Respond strictly in ${conversationLanguage}.
+- Respond strictly in ${conversationLanguage} for medical symptoms.
 - Keep answers professional, precise, and helpful.
-- Ask follow-up questions minimally to understand symptoms better.
-- Politely ask for the user's name, age, city, and country only if not already provided. Mention it is optional.
-- Recommend appropriate over-the-counter medication or typical first-line treatment when safe, but advise seeing a doctor if symptoms are severe.
-- Speak like a real doctor during consultation.
+- Recommend safe OTC or first-line medications where appropriate.
+- Ask up to 2 follow-up questions per message when needed.
+- Politely ask for the user's name, age, city, and country if not provided.
 ${urgentNotice ? `- ${urgentNotice}` : ""}
 `;
 
-  if (isDeveloperQuery) {
-    systemPrompt += "- The user is asking who developed you. Answer: 'I was developed by Arnold Ndlovu.'\n";
-  }
-
-  const userPrompt = message;
+  if (isDeveloperQuery) systemPrompt += "- Answer: 'I was developed by Arnold Ndlovu.'\n";
 
   if (urgentSymptoms.length > 0) {
-    if (userInfo.city && userInfo.country) {
-      systemPrompt += `- Recommend nearest hospitals or private surgeries in ${userInfo.city}, ${userInfo.country}.\n`;
-    } else {
-      systemPrompt += `- Advise to seek the nearest hospital or private surgery and mention that providing city/country can help give specific recommendations.\n`;
-    }
+    if (userInfo.city && userInfo.country) systemPrompt += `- Recommend nearest hospitals or private surgeries in ${userInfo.city}, ${userInfo.country}.\n`;
+    else systemPrompt += "- Advise to seek the nearest hospital or private surgery.\n";
   }
 
+  const userPrompt = `${message}${followUpPrompt ? "\n\n" + followUpPrompt : ""}\n\n${generateMedicationPrompt(message, userInfo)}`;
+
   try {
-    // --- OpenRouter GPT-4 API ---
     const aiResp = await axios.post(
       "https://openrouter.ai/api/v1/chat/completions",
       {
         model: "openai/gpt-4o-mini",
         messages: [
-          { role: "system", content: systemPrompt },
+          { role:"system", content: systemPrompt },
           ...conversationHistory,
-          { role: "user", content: userPrompt }
+          { role:"user", content: userPrompt }
         ],
-        temperature: 0.7
+        temperature:0.7
       },
-      {
-        headers: {
-          Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-          "Content-Type": "application/json"
-        }
-      }
+      { headers: { Authorization: `Bearer ${OPENROUTER_API_KEY}`, "Content-Type": "application/json" } }
     );
 
     let aiReply = aiResp.data.choices[0].message.content;
-
-    if (urgentSymptoms.length > 0) {
-      aiReply = `Important symptom alert: ${urgentSymptoms.join(", ")}. Seek immediate medical attention.\n\n${aiReply}`;
-    }
-
+    if (urgentSymptoms.length > 0) aiReply = `Important symptom alert: ${urgentSymptoms.join(", ")}. Seek immediate medical attention.\n\n${aiReply}`;
     conversationHistory.push({ role: "assistant", content: aiReply });
 
     // --- ElevenLabs TTS ---
@@ -152,17 +164,10 @@ ${urgentNotice ? `- ${urgentNotice}` : ""}
     try {
       const ttsResp = await axios({
         method: "post",
-        url: `https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}`,
-        headers: {
-          "Accept": "audio/mpeg",
-          "Content-Type": "application/json",
-          "xi-api-key": ELEVENLABS_API_KEY
-        },
-        responseType: "arraybuffer",
-        data: {
-          text: aiReply,
-          voice_settings: { stability: 0.8, similarity_boost: 0.9 }
-        }
+        url:`https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}`,
+        headers:{ "Accept":"audio/mpeg", "Content-Type":"application/json","xi-api-key":ELEVENLABS_API_KEY },
+        responseType:"arraybuffer",
+        data:{ text:aiReply, voice_settings:{stability:0.8, similarity_boost:0.9} }
       });
       audio = `data:audio/mpeg;base64,${Buffer.from(ttsResp.data).toString("base64")}`;
     } catch (ttsError) {
@@ -177,13 +182,13 @@ ${urgentNotice ? `- ${urgentNotice}` : ""}
 });
 
 // --- Reset conversation ---
-app.post("/reset", (req, res) => {
+app.post("/reset", (req,res)=>{
   conversationHistory = [];
   conversationLanguage = null;
-  userInfo = { name: null, age: null, city: null, country: null };
-  res.json({ success: true });
+  userInfo = { name:null, age:null, city:null, country:null };
+  res.json({ success:true });
 });
 
 // --- Start server ---
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT,()=>console.log(`Server running on port ${PORT}`));
