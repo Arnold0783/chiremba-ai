@@ -1,19 +1,23 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, KeyboardEvent, ChangeEvent } from "react";
 import axios from "axios";
 import { FiSend, FiMic, FiRefreshCw } from "react-icons/fi";
-import { JSX } from "react/jsx-runtime";
 
 // Web Speech API
 const SpeechRecognition =
   (window as any).SpeechRecognition ||
   (window as any).webkitSpeechRecognition;
 
-function App(): JSX.Element {
-  const [message, setMessage] = useState("");
-  const [chat, setChat] = useState<{ sender: "user" | "doctor"; text: string }[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [typing, setTyping] = useState(false);
-  const chatEndRef = useRef<HTMLDivElement>(null);
+interface ChatMessage {
+  sender: "user" | "doctor";
+  text: string;
+}
+
+const App: React.FC = () => {
+  const [message, setMessage] = useState<string>("");
+  const [chat, setChat] = useState<ChatMessage[]>([]);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [typing, setTyping] = useState<boolean>(false);
+  const chatEndRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -34,8 +38,12 @@ function App(): JSX.Element {
       const recognition = new SpeechRecognition();
       recognition.lang = "en-US";
       recognition.start();
-      recognition.onresult = (event: any) =>
-        setMessage(event.results[0][0].transcript);
+
+      // ✅ Fix for TypeScript
+      recognition.onresult = (event: { results: SpeechRecognitionResultList }) => {
+        const transcript = event.results[0][0].transcript;
+        setMessage(transcript);
+      };
     } catch {
       alert("Voice recognition failed. Use Chrome for best results.");
     }
@@ -55,8 +63,7 @@ function App(): JSX.Element {
       const base64Data = base64Audio.replace(/^data:audio\/mpeg;base64,/, "");
       const byteChars = atob(base64Data);
       const byteNumbers = new Array(byteChars.length);
-      for (let i = 0; i < byteChars.length; i++)
-        byteNumbers[i] = byteChars.charCodeAt(i);
+      for (let i = 0; i < byteChars.length; i++) byteNumbers[i] = byteChars.charCodeAt(i);
       const byteArray = new Uint8Array(byteNumbers);
       const blob = new Blob([byteArray], { type: "audio/mpeg" });
       const url = URL.createObjectURL(blob);
@@ -67,30 +74,40 @@ function App(): JSX.Element {
   };
 
   const sendMessage = async () => {
-    if (message.trim() === "" || loading) return;
-    setChat((prev: any) => [...prev, { sender: "user", text: message }]);
+    if (!message.trim() || loading) return;
+    setChat(prev => [...prev, { sender: "user", text: message }]);
     setLoading(true);
     setTyping(true);
+
     try {
       const res = await axios.post("https://chiremba-ai.onrender.com/chat", { message });
-      const reply = res.data.response;
+      const reply: string = res.data.response;
       setTimeout(() => {
-        setChat((prev: any) => [...prev, { sender: "doctor", text: reply }]);
-        playAudio(res.data.audio, reply);
+        setChat(prev => [...prev, { sender: "doctor", text: reply }]);
+        playAudio(res.data.audio ?? null, reply);
         setTyping(false);
         setLoading(false);
       }, 400);
     } catch {
-      setChat((prev: any) => [...prev, { sender: "doctor", text: "Server error" }]);
+      setChat(prev => [...prev, { sender: "doctor", text: "Server error" }]);
       setTyping(false);
       setLoading(false);
     }
+
     setMessage("");
   };
 
   const resetConversation = async () => {
     try { await axios.post("https://chiremba-ai.onrender.com/reset"); } catch {}
     setChat([]);
+  };
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") sendMessage();
+  };
+
+  const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
+    setMessage(e.target.value);
   };
 
   return (
@@ -100,72 +117,68 @@ function App(): JSX.Element {
       alignItems: "center",
       height: "100vh",
       fontFamily: "'Segoe UI', sans-serif",
-      background: "linear-gradient(135deg, #e0f7fa, #b2ebf2)", // soft medical background
-      padding: "10px"
+      background: "linear-gradient(135deg, #e0f7fa, #b2ebf2)",
+      padding: 10
     }}>
-      {/* MAIN CHAT CONTAINER */}
       <div style={{
-        width: "420px",
+        width: 420,
         height: "90vh",
-        maxHeight: "800px",
+        maxHeight: 800,
         display: "flex",
         flexDirection: "column",
-        borderRadius: "25px",
+        borderRadius: 25,
         overflow: "hidden",
         boxShadow: "0 20px 50px rgba(0,0,0,0.15)",
         background: "rgba(255,255,255,0.15)",
         backdropFilter: "blur(30px)",
         WebkitBackdropFilter: "blur(30px)",
-        border: "1px solid rgba(255,255,255,0.3)",
+        border: "1px solid rgba(255,255,255,0.3)"
       }}>
         {/* HEADER */}
         <div style={{
-          padding: "18px",
+          padding: 18,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          gap: "10px",
+          gap: 10,
           fontWeight: "bold",
-          fontSize: "35px",
-          color: "#0277bd", // deep blue for readability
+          fontSize: 35,
+          color: "#0277bd",
           background: "rgba(224,247,250,0.6)",
           backdropFilter: "blur(10px)",
           WebkitBackdropFilter: "blur(10px)",
-          borderBottom: "1px solid rgba(2, 1, 82, 0.3)",
-          flexShrink: 0,
+          borderBottom: "1px solid rgba(2,1,82,0.3)"
         }}>
-          <img src="/zim-flag.png" alt="Zimbabwe Flag" style={{ width: '70px', height: '60px', borderRadius: '40px' }} />
+          <img src="/zim-flag.png" alt="Zimbabwe Flag" style={{ width: 70, height: 60, borderRadius: 40 }} />
           DR. CHIREMBA
         </div>
 
         {/* CHAT AREA */}
         <div style={{
           flex: 1,
-          padding: "12px",
+          padding: 12,
           display: "flex",
           flexDirection: "column",
           overflowY: "auto",
-          gap: "8px",
-          borderRadius: "20px",
+          gap: 8,
+          borderRadius: 20,
           backgroundImage: "url('/chat-bg.png')",
           backgroundSize: "cover",
           backgroundPosition: "center",
-          backgroundRepeat: "no-repeat",
+          backgroundRepeat: "no-repeat"
         }}>
-          {chat.map((msg: { sender: string; text: any; }, idx: any) => (
+          {chat.map((msg, idx) => (
             <div key={idx} style={{
               display: "flex",
               justifyContent: msg.sender === "user" ? "flex-end" : "flex-start"
             }}>
               <span style={{
                 padding: "12px 18px",
-                borderRadius: "25px",
+                borderRadius: 25,
                 maxWidth: "75%",
-                background: msg.sender === "user"
-                  ? "rgba(2, 57, 82, 0.6)"      // light blue bubble
-                  : "rgba(94, 2, 118, 0.3)",  // glassy doctor bubble
-                color: msg.sender === "user" ? "#fff" : "#fff",
-                fontSize: "20px",
+                background: msg.sender === "user" ? "rgba(2,57,82,0.6)" : "rgba(94,2,118,0.3)",
+                color: "#fff",
+                fontSize: 20,
                 wordWrap: "break-word",
                 boxShadow: "0 8px 20px rgba(0,0,0,0.08)",
                 backdropFilter: "blur(10px)",
@@ -179,10 +192,10 @@ function App(): JSX.Element {
             <div style={{ display: "flex", justifyContent: "flex-start" }}>
               <span style={{
                 padding: "8px 14px",
-                borderRadius: "20px",
-                background: "rgba(77, 12, 126, 0.25)",
+                borderRadius: 20,
+                background: "rgba(77,12,126,0.25)",
                 color: "#f8fbfc",
-                fontSize: "18px",
+                fontSize: 18,
                 animation: "blink 1.2s infinite",
                 backdropFilter: "blur(8px)",
                 WebkitBackdropFilter: "blur(8px)"
@@ -196,68 +209,34 @@ function App(): JSX.Element {
         <div style={{
           display: "flex",
           alignItems: "center",
-          padding: "12px",
+          padding: 12,
           borderTop: "1px solid rgba(255,255,255,0.3)",
           background: "rgba(255,255,255,0.15)",
           backdropFilter: "blur(25px)",
           WebkitBackdropFilter: "blur(25px)",
-          gap: "8px",
-          flexShrink: 0
+          gap: 8
         }}>
           <input
             value={message}
-            onChange={(e: { target: { value: any; }; }) => setMessage(e.target.value)}
+            onChange={handleChange}
+            onKeyDown={handleKeyDown}
             placeholder="Type a message..."
             style={{
               flex: 1,
               padding: "12px 16px",
-              borderRadius: "30px",
+              borderRadius: 30,
               border: "1px solid rgba(255,255,255,0.5)",
-              fontSize: "14px",
+              fontSize: 14,
               outline: "none",
               background: "rgba(255,255,255,0.25)",
               color: "#0277bd",
               backdropFilter: "blur(10px)",
               WebkitBackdropFilter: "blur(10px)"
             }}
-            onKeyDown={(e: { key: string; }) => e.key === "Enter" && sendMessage()}
           />
-          <button onClick={sendMessage} style={{
-            padding: "12px",
-            borderRadius: "50%",
-            background: "rgba(3,169,244,0.6)",
-            border: "none",
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color: "#fff",
-            fontSize: "18px"
-          }}><FiSend /></button>
-          <button onClick={startListening} style={{
-            padding: "12px",
-            borderRadius: "50%",
-            background: "rgba(3,169,244,0.6)",
-            border: "none",
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color: "#fff",
-            fontSize: "18px"
-          }}><FiMic /></button>
-          <button onClick={resetConversation} style={{
-            padding: "12px",
-            borderRadius: "50%",
-            background: "rgba(244,67,54,0.6)",
-            border: "none",
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color: "#fff",
-            fontSize: "18px"
-          }}><FiRefreshCw /></button>
+          <button onClick={sendMessage} style={buttonStyle}><FiSend size={22} /></button>
+          <button onClick={startListening} style={buttonStyle}><FiMic size={22} /></button>
+          <button onClick={resetConversation} style={{ ...buttonStyle, background: "rgba(244,67,54,0.6)" }}><FiRefreshCw size={22} /></button>
         </div>
 
         <style>{`
@@ -270,6 +249,20 @@ function App(): JSX.Element {
       </div>
     </div>
   );
-}
+};
+
+// button style reused
+const buttonStyle: React.CSSProperties = {
+  padding: 12,
+  borderRadius: "50%",
+  background: "rgba(3,169,244,0.6)",
+  border: "none",
+  cursor: "pointer",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  color: "#fff",
+  fontSize: 18
+};
 
 export default App;
