@@ -8,7 +8,7 @@ app.use(cors());
 app.use(express.json());
 
 // --- API Keys ---
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || "sk-or-v1-4d4cad-f7239a82558b09332053df1e-f56177b0314c1ed68fc2d39b41d3a68b3f";
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || "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";
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || "sk_d-c977c50f59a82a7811452b452d9fd6b30a48eabbe25016a";
 const VOICE_ID = process.env.VOICE_ID || "CwhRBWXzGAHq8TQ4Fs17";
 
