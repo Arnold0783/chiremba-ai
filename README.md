@@ -1,3 +1,5 @@
+[![Live Demo](https://img.shields.io/badge/Live-Demo-green)](https://dr-chiremba.onrender.com)
+
 # 🩺 Dr. Chiremba AI
 
 
